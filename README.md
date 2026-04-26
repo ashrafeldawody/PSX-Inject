@@ -1,78 +1,129 @@
-# PSX inject — Windows Desktop (WPF)
+# PSX inject
 
-A native Windows desktop port of the Node.js script in the parent folder.
-Built with WPF on .NET 10, dark PlayStation-inspired theme, MVVM via
-CommunityToolkit.Mvvm.
+A Windows desktop proxy + download helper for PS4. Sit your PC between your PS4 and PSN, **cache `.pkg` files locally**, **stream from Sony when you don't have them**, and **export clean download links** that you can paste straight into IDM (or any download manager) so you never have to re-download a game over the console's slow connection again.
 
-## Build
+Built with **WPF on .NET 10**, dark PlayStation-blue theme, MVVM. Ships as a **self-contained single-file `.exe`** — no .NET runtime install required on the target machine.
 
-```pwsh
-cd desktop
-dotnet build
-```
+---
 
-Open `PsxInject.sln` in Visual Studio for an IDE workflow (F5 to debug).
+## Features
 
-## Publish a single-file exe
+- **Forward HTTP proxy** that the PS4 talks to instead of PSN directly. Listens on `0.0.0.0:<port>` so any device on your LAN can use it.
+- **Local cache** — drop `.pkg` files into your data folder and the proxy serves them with full HTTP `Range` support, so the PS4 thinks it's downloading from PSN at LAN speed and can resume downloads across reboots.
+- **Sony fallback toggle** on the dashboard:
+  - **🚫 Block** — cache misses return `404`. Use when you want to force manual cache prep.
+  - **✓ Allow** — cache misses are streamed through to Sony's servers, so the PS4 can finish downloads without intervention.
+- **HTTPS tunneling** via the `CONNECT` method — PSN's auth, image, and notification APIs all need TLS, and the proxy relays them transparently.
+- **Automatic part discovery** — the moment your PS4 hits any `_0.pkg`, a background sweep walks `_1.pkg`, `_2.pkg`, … with HEAD probes (range `bytes=0-0`) until PSN says "no more". Each part's size lands in the UI before the PS4 has even asked for it.
+- **TMDB metadata** — when the PS4 fetches a game's `tmdb2/.../<TitleId>.json`, the proxy quietly downloads it too and parses the **real game name, icon, background image, content ID, category** for the Games tab.
+- **Games tab** with a card per detected title:
+  - Background image (faded), 76px icon, real name, Title ID pill, category, total size, content ID.
+  - Game files vs. updates listed separately, each with its size.
+  - **📋 Copy all links** button → all parts (params stripped) joined by newlines, ready for IDM's batch import.
+  - **📋 Copy URL** per part for one-off downloads.
+- **Live request feed** with color-coded kinds: HIT (green), MISS (amber), PROXY (blue), SONY fallback (cyan), CONNECT tunnels, ERROR (red). Every row with a real URL is copyable; cache-miss URLs are auto-stripped of session-bound query tokens on copy.
+- **Stat dashboard** — total requests, cache hits/misses, proxy requests, errors, bytes served, uptime, your machine's LAN IP(s) so you can type them into the PS4 right from the hero card.
+- **System tray icon** with a green-dot running indicator, tooltip status, and a context menu (Open / Start-Stop server / Exit).
+- **Close-action dialog** with three choices (Stop & exit / Keep running in background / Cancel) and a "Don't ask again" remember-my-choice option.
+- **Fault-tolerant by design**:
+  - Single-instance mutex prevents double-launch.
+  - Authoritative **port-conflict detection** — IPv4 wildcard + IPv4/IPv6 loopback probe-binds *and* an active TCP connect to localhost. If anything is bound to your chosen port, the UI surfaces a banner with a free suggested port and a one-click "Use port X" button.
+  - **Firewall helper** — detects whether Windows Defender Firewall has an inbound rule for the exe; if not, a single click triggers UAC and adds it via `netsh` (no manual rule editing). On failure, the netsh log + a copy-pasteable manual command are surfaced in-app.
+  - Per-connection errors never take down the listener.
+  - Client-disconnect exceptions (PS4 cancelling parallel range requests mid-flight) are silently swallowed instead of polluting the error stream.
+  - Global dispatcher / AppDomain / unobserved-task exception handlers — no silent crashes.
+- **Smart shutdown** — server tear-down runs on a thread-pool thread so the UI never freezes during the close sequence.
 
-```pwsh
-cd desktop
-dotnet publish PsxInject/PsxInject.csproj `
-  -c Release -r win-x64 -o publish/win-x64
-```
+---
 
-This produces `publish/win-x64/PsxInject.exe` — a self-contained
-single-file binary that runs on any Windows 10/11 x64 machine without
-the .NET runtime installed.
+## Installation
 
-## How it works
+1. Grab the latest `PSX-Inject-vX.Y.Z-win-x64.exe` from the [Releases](https://github.com/ashrafeldawody/PSX-Inject/releases) page.
+2. Run it. (Windows SmartScreen may warn the first time — click **More info → Run anyway**; the exe is unsigned.)
+3. On first launch, click **🛡 Allow LAN access** in the firewall banner — one UAC prompt and you're done forever.
 
-- A `TcpListener` on `0.0.0.0:<port>` accepts inbound HTTP requests from the PS4.
-- The request URL is matched against the same regex used by `index.js`:
-  `^http://(?:gs2?\.ww\.|gst\.|gs\.)?(?:prod\.)?dl\.playstation\.net.*/([^?]+\.pkg)\?`
-- **Match** → file is served from the configured data folder with full
-  HTTP `Range` support (so the PS4 can resume large downloads).
-- **No match** → the request is forwarded upstream via `HttpClient`, response
-  streamed back to the client. Hop-by-hop headers are stripped on both sides.
+That's it. No installer, no admin install, no .NET runtime needed.
+
+## Using it with your PS4
+
+1. Start the server in PSX inject (or it'll auto-start if you've enabled the option).
+2. The Dashboard shows your **LAN IP : port** prominently — note it.
+3. On your PS4: **Settings → Network → Set Up Internet Connection → Use Wi-Fi/LAN → Custom**. Configure as needed; when you reach the Proxy step, choose **Use** and enter your PC's IP and the port.
+4. Start (or pause + resume) a download on the PS4.
+5. **If Sony fallback is ON**: the PS4 downloads through your PC. Watch sizes accumulate on the Games tab in real time.
+6. **If Sony fallback is OFF**: the first request 404s — copy the URL from the Requests tab, download via your favourite tool, drop the file into the data folder (without renaming), then resume the PS4 download. It'll now serve from cache at LAN speed.
+
+For multi-part games, hit the **📋 Copy all links** button on the game card after discovery completes — paste into IDM, hit download all, walk away.
+
+---
 
 ## Settings
 
 Stored as JSON at `%AppData%\PsxInject\settings.json`:
 
-| Field                  | Default                                                  |
-| ---------------------- | -------------------------------------------------------- |
-| `port`                 | `8085`                                                   |
-| `dataDirectory`        | `%USERPROFILE%\Documents\PsxInject\data`         |
-| `autoStartServer`      | `true`                                                   |
-| `minimizeToTrayOnClose`| `true`                                                   |
-| `requestTimeoutMs`     | `30000`                                                  |
-| `maxLogEntries`        | `500`                                                    |
+| Field                | Default                                          | Description                                                         |
+| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------- |
+| `port`               | `8080`                                           | TCP port the proxy listens on                                       |
+| `dataDirectory`      | `%USERPROFILE%\Documents\PsxInject\data`         | Where cached `.pkg` files live                                      |
+| `closeAction`        | `Ask`                                            | What pressing × does: `Ask` / `RunInBackground` / `Exit`            |
+| `autoStartServer`    | `false`                                          | Start the proxy automatically when the app launches                 |
+| `allowSonyFallback`  | `false`                                          | Stream cache misses through Sony's servers (toggleable from the UI) |
+| `requestTimeoutMs`   | `30000`                                          | Per-connection timeout                                              |
+| `maxLogEntries`      | `500`                                            | Cap on the in-memory request feed                                   |
 
-## Fault tolerance
+The file also stores discovered pkg metadata (sizes, source URLs, TMDB names/icons) so the Games tab is fully populated on relaunch.
 
-- **Single-instance lock** via named mutex.
-- **Unhandled exceptions** on the dispatcher are caught and shown without crashing.
-- **Per-connection** errors don't take down the listener.
-- **Port conflict** is detected before starting — UI surfaces a clear message.
-- **Auto-create** data directory if missing.
+---
+
+## Building from source
+
+Requirements: **Windows + .NET 10 SDK**.
+
+```pwsh
+git clone https://github.com/ashrafeldawody/PSX-Inject.git
+cd PSX-Inject
+dotnet build
+```
+
+Or open `PsxInject.sln` in Visual Studio 2022+ and press **F5**.
+
+### Publishing a release-grade exe
+
+```pwsh
+dotnet publish PsxInject/PsxInject.csproj `
+  -c Release -r win-x64 -o publish
+```
+
+Produces `publish/PsxInject.exe` — self-contained, single-file, compressed. Drop it on any Windows 10/11 x64 machine and it runs.
+
+A **GitHub Actions release pipeline** is wired up: pushing a `v*` tag triggers a build that publishes the same exe and attaches it to a GitHub Release with auto-generated notes. See `.github/workflows/release.yml`.
+
+---
 
 ## Project layout
 
 ```
-desktop/
+.
 ├── PsxInject.sln
 ├── NuGet.config                 # forces nuget.org as the only source
+├── .github/workflows/release.yml # build + release on tag push
 └── PsxInject/
     ├── PsxInject.csproj
-    ├── app.manifest             # DPI/long-path/Windows 10+ targeting
-    ├── App.xaml(.cs)            # entry point, single-instance, global error handlers
-    ├── MainWindow.xaml(.cs)     # sidebar + 4 pages
-    ├── Server/                  # TcpListener proxy core (port of index.js)
-    ├── Models/                  # AppSettings, RequestLogEntry, CachedFile, ServerStats
-    ├── Services/                # SettingsService, NetworkService, CacheService
-    ├── ViewModels/              # MainViewModel
+    ├── app.manifest             # DPI awareness, long-path support, Windows 10+ target
+    ├── Assets/app.ico           # window/exe icon
+    ├── App.xaml(.cs)            # entry, single-instance lock, global handlers, tray wiring
+    ├── MainWindow.xaml(.cs)     # sidebar nav + 5 pages, close-confirm flow
+    ├── Themes/                  # Colors.xaml, Styles.xaml (PS-blue dark theme)
     ├── Converters/              # XAML value converters
-    └── Themes/                  # Colors.xaml + Styles.xaml (dark theme)
+    ├── Server/                  # TcpListener proxy core, range serving, CONNECT tunnel
+    ├── Models/                  # AppSettings, Game, GameMetadata, RequestLogEntry, ServerStats, CachedFile
+    ├── Services/                # Settings, Network, Cache, Games, Firewall, TrayIcon
+    ├── ViewModels/              # MainViewModel (CommunityToolkit.Mvvm)
+    └── Views/                   # CloseConfirmDialog
 ```
 
-The original `../index.js` is kept as a reference implementation.
+---
+
+## License
+
+MIT
