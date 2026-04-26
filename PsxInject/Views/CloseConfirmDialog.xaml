@@ -1,0 +1,90 @@
+<Window x:Class="PsxInject.Views.CloseConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Close PSX inject"
+        Icon="/Assets/app.ico"
+        Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{StaticResource B.Bg}"
+        Foreground="{StaticResource B.Text}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType">
+
+    <Border BorderBrush="{StaticResource B.Border}" BorderThickness="1" CornerRadius="0" Padding="24">
+        <StackPanel>
+            <TextBlock Style="{StaticResource H2}" Text="Close PSX inject?" />
+            <TextBlock Style="{StaticResource Subtle}" Margin="0,6,0,0" TextWrapping="Wrap"
+                       Text="The proxy server is currently running. What would you like to do?" />
+
+            <!-- Stop and Exit -->
+            <Button Margin="0,18,0,0" Padding="14,12" Cursor="Hand"
+                    HorizontalContentAlignment="Left"
+                    Click="OnStopAndExit">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="8" Background="{StaticResource B.Surface}"
+                                BorderBrush="{StaticResource B.Border}" BorderThickness="1"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.SurfaceHover}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.Error}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Foreground="{StaticResource B.Error}"
+                               Text="■  Stop server and exit" />
+                    <TextBlock Style="{StaticResource Subtle}" Margin="0,2,0,0" TextWrapping="Wrap"
+                               Text="The proxy will stop. The PS4 won't reach this app until you launch it again." />
+                </StackPanel>
+            </Button>
+
+            <!-- Run in Background -->
+            <Button Margin="0,8,0,0" Padding="14,12" Cursor="Hand"
+                    HorizontalContentAlignment="Left"
+                    Click="OnRunInBackground">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="8" Background="{StaticResource B.AccentDim}"
+                                BorderBrush="{StaticResource B.Accent}" BorderThickness="1"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource B.Accent}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource B.AccentBright}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Foreground="White"
+                               Text="◐  Keep running in background" />
+                    <TextBlock Style="{StaticResource Subtle}" Foreground="#CCEAF7FF" Margin="0,2,0,0" TextWrapping="Wrap"
+                               Text="Hide the window. The proxy keeps running. Reopen from the system tray (notification area)." />
+                </StackPanel>
+            </Button>
+
+            <!-- Cancel -->
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" x:Name="DontAskAgain"
+                          VerticalAlignment="Center"
+                          Content="Don't ask again — remember my choice" />
+                <Button Grid.Column="1" Style="{StaticResource BtnGhost}" Content="Cancel"
+                        IsCancel="True" Click="OnCancel" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>
